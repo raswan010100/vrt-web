@@ -32,6 +32,7 @@ export default function Home() {
   const [customH, setCustomH] = useState(800);
   const [threshold, setThreshold] = useState(0.1);
   const [isDragging, setIsDragging] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const compareSliderRef = useRef<HTMLDivElement>(null);
@@ -62,6 +63,39 @@ export default function Home() {
     const file = e.dataTransfer.files[0];
     if (file) handleFile(file);
   }, [handleFile]);
+
+  // ── Auto screenshot ───────────────────────────────────────────────────────
+
+  async function handleAutoScreenshot() {
+    if (!url.trim()) { setError('Masukkan URL terlebih dahulu sebelum mengambil screenshot.'); return; }
+    if (!url.startsWith('http')) { setError('URL harus dimulai dengan http:// atau https://'); return; }
+    if (viewport.width < 1 || viewport.height < 1) { setError('Pilih ukuran viewport terlebih dahulu.'); return; }
+
+    setIsCapturing(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/screenshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim(), width: viewport.width, height: viewport.height }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal mengambil screenshot.');
+
+      // Convert base64 ke File object agar bisa dipakai saat submit
+      const fetchRes = await fetch(data.screenshot);
+      const blob = await fetchRes.blob();
+      const file = new File([blob], 'auto-screenshot.png', { type: 'image/png' });
+
+      setBaselineFile(file);
+      setBaselinePreview(data.screenshot);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal mengambil screenshot otomatis.');
+    } finally {
+      setIsCapturing(false);
+    }
+  }
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -179,9 +213,40 @@ export default function Home() {
 
             {/* Upload baseline */}
             <div className="rounded-2xl p-6" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
-              <label className="block text-sm font-semibold mb-4" style={{ color: 'var(--text)' }}>
-                1. Upload Baseline Screenshot
-              </label>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                  1. Baseline Screenshot
+                </label>
+                {/* Tombol Screenshot Otomatis */}
+                <button
+                  type="button"
+                  onClick={handleAutoScreenshot}
+                  disabled={isCapturing}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={{
+                    background: isCapturing ? 'rgba(124,111,247,0.1)' : 'linear-gradient(135deg,#7c6ff7,#5b8ef0)',
+                    color: isCapturing ? '#8888a8' : '#fff',
+                    border: isCapturing ? '1px solid rgba(124,111,247,0.2)' : '1px solid transparent',
+                    cursor: isCapturing ? 'not-allowed' : 'pointer',
+                    boxShadow: isCapturing ? 'none' : '0 2px 12px rgba(124,111,247,0.3)',
+                  }}
+                >
+                  {isCapturing ? (
+                    <>
+                      <span className="animate-spin">⏳</span> Mengambil screenshot...
+                    </>
+                  ) : (
+                    <>📸 Screenshot Otomatis</>
+                  )}
+                </button>
+              </div>
+
+              {/* Info hint */}
+              {!baselinePreview && (
+                <div className="mb-4 px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(124,111,247,0.06)', border: '1px solid rgba(124,111,247,0.12)', color: 'var(--muted)' }}>
+                  💡 Isi URL & pilih viewport dulu, lalu klik <strong style={{ color: '#a78bfa' }}>Screenshot Otomatis</strong> — atau upload manual di bawah.
+                </div>
+              )}
 
               {baselinePreview ? (
                 <div className="space-y-3">
@@ -207,8 +272,8 @@ export default function Home() {
                     background: isDragging ? 'rgba(124,111,247,0.06)' : 'transparent',
                   }}
                 >
-                  <div className="text-4xl mb-3">📸</div>
-                  <div className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>Drag & drop atau klik untuk upload</div>
+                  <div className="text-4xl mb-3">📁</div>
+                  <div className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>Drag & drop atau klik untuk upload manual</div>
                   <div className="text-xs" style={{ color: 'var(--muted)' }}>PNG, JPG, WebP — maks 20MB</div>
                   <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
