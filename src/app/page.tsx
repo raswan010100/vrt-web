@@ -223,6 +223,7 @@ export default function Home() {
   const [result, setResult] = useState<JourneyReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'' | 'capture' | 'test'>('');
+  const [capturingId, setCapturingId] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState('');
 
   const [url, setUrl] = useState('');
@@ -238,6 +239,50 @@ export default function Home() {
   const updateCp = (id: string, patch: Partial<CheckpointUI>) => setCheckpoints((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const removeCp = (id: string) => setCheckpoints((prev) => (prev.length > 1 ? prev.filter((c) => c.id !== id) : prev));
   const addCp = () => setCheckpoints((prev) => [...prev, newCheckpoint(prev.length + 1)]);
+
+  // ── Baseline per checkpoint ────────────────────────────────────────────────
+
+  /** Capture baseline 1 checkpoint: jalankan journey s/d checkpoint ini, ambil shot terakhir. */
+  async function captureOne(id: string) {
+    const v = validateBasics();
+    if (v) { setError(v); return; }
+    const idx = checkpoints.findIndex((c) => c.id === id);
+    if (idx < 0) return;
+    setCapturingId(id);
+    setError(null);
+    try {
+      const slice = checkpoints.slice(0, idx + 1);
+      const res = await fetch('/api/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: url.trim(),
+          width: viewport.width,
+          height: viewport.height,
+          checkpoints: slice.map((c) => ({ name: c.name, steps: cleanSteps(c.steps), hideSelectors: parseHide(c.hide) })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal capture baseline.');
+      const shot = data.shots[idx];
+      if (shot) updateCp(id, { baseline: shot });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal capture baseline checkpoint.');
+    } finally {
+      setCapturingId(null);
+    }
+  }
+
+  /** Upload baseline manual dari file lokal. */
+  function uploadOne(id: string, file: File) {
+    if (!file.type.startsWith('image/')) { setError('File baseline harus berupa gambar (PNG/JPG).'); return; }
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => updateCp(id, { baseline: e.target?.result as string });
+    reader.readAsDataURL(file);
+  }
+
+  const clearOne = (id: string) => updateCp(id, { baseline: null });
 
   function validateBasics(): string | null {
     if (!url.trim() || !url.startsWith('http')) return 'URL harus dimulai dengan http:// atau https://';
@@ -405,7 +450,6 @@ export default function Home() {
                       <span className="w-6 h-6 rounded-lg inline-flex items-center justify-center text-xs font-bold" style={{ background: 'rgba(124,111,247,0.15)', color: '#a78bfa' }}>{idx + 1}</span>
                       <input type="text" value={c.name} onChange={(e) => updateCp(c.id, { name: e.target.value })} placeholder="Nama checkpoint"
                         className="flex-1 rounded-lg px-3 py-1.5 text-sm font-medium outline-none" style={inputStyle} />
-                      {c.baseline && <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(34,212,122,0.1)', color: '#22d47a', border: '1px solid rgba(34,212,122,0.2)' }}>baseline ✓</span>}
                       <button type="button" onClick={() => removeCp(c.id)} disabled={checkpoints.length === 1}
                         className="px-2 py-1 rounded-lg text-xs" style={{ color: '#f04f5c', background: 'rgba(240,79,92,0.08)', border: '1px solid rgba(240,79,92,0.15)', opacity: checkpoints.length === 1 ? 0.3 : 1 }}>✕</button>
                     </div>
@@ -420,11 +464,29 @@ export default function Home() {
                     <div className="text-xs font-medium mt-3 mb-1.5" style={{ color: 'var(--muted)' }}>Cek konten (opsional)</div>
                     <AssertionEditor items={c.assertions} onChange={(a) => updateCp(c.id, { assertions: a })} />
 
+                    <div className="text-xs font-medium mt-3 mb-1.5" style={{ color: 'var(--muted)' }}>Baseline</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => captureOne(c.id)} disabled={capturingId !== null || busy !== ''}
+                        className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ background: 'rgba(124,111,247,0.12)', color: '#a78bfa', border: '1px solid rgba(124,111,247,0.25)', cursor: capturingId || busy ? 'not-allowed' : 'pointer', opacity: capturingId === c.id ? 0.7 : 1 }}>
+                        {capturingId === c.id ? '⏳ Capturing...' : '📸 Capture'}
+                      </button>
+                      <label className="text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                        📁 Upload
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadOne(c.id, f); e.target.value = ''; }} />
+                      </label>
+                      {c.baseline && (
+                        <button type="button" onClick={() => clearOne(c.id)}
+                          className="text-xs px-3 py-1.5 rounded-lg font-medium" style={{ background: 'rgba(240,79,92,0.08)', color: '#f04f5c', border: '1px solid rgba(240,79,92,0.2)' }}>
+                          ✕ Hapus
+                        </button>
+                      )}
+                      <span className="text-xs ml-auto" style={{ color: c.baseline ? '#22d47a' : 'var(--muted)' }}>
+                        {c.baseline ? 'baseline ✓' : 'belum ada baseline'}
+                      </span>
+                    </div>
                     {c.baseline && (
-                      <div className="mt-3">
-                        <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Preview baseline:</div>
-                        <img src={c.baseline} alt="baseline" className="w-full rounded-lg" style={{ border: '1px solid var(--border)', maxHeight: 180, objectFit: 'contain', objectPosition: 'top', background: '#0a0a14' }} />
-                      </div>
+                      <img src={c.baseline} alt="baseline" className="w-full rounded-lg mt-2" style={{ border: '1px solid var(--border)', maxHeight: 180, objectFit: 'contain', objectPosition: 'top', background: '#0a0a14' }} />
                     )}
                   </div>
                 ))}
@@ -437,11 +499,11 @@ export default function Home() {
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
-              <button type="button" onClick={captureBaselines} disabled={busy !== ''}
-                className="flex-1 py-4 rounded-2xl text-base font-semibold" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text)', cursor: busy ? 'not-allowed' : 'pointer' }}>
-                {busy === 'capture' ? '⏳ Meng-capture journey...' : '📸 Capture Baseline Journey'}
+              <button type="button" onClick={captureBaselines} disabled={busy !== '' || capturingId !== null}
+                className="flex-1 py-4 rounded-2xl text-base font-semibold" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text)', cursor: busy || capturingId ? 'not-allowed' : 'pointer' }}>
+                {busy === 'capture' ? '⏳ Meng-capture journey...' : '📸 Capture Semua Baseline'}
               </button>
-              <button type="button" onClick={runTest} disabled={busy !== '' || !baselinesReady}
+              <button type="button" onClick={runTest} disabled={busy !== '' || capturingId !== null || !baselinesReady}
                 className="flex-1 py-4 rounded-2xl text-base font-semibold text-white" style={{ background: baselinesReady ? 'linear-gradient(135deg,#7c6ff7,#5b8ef0)' : 'rgba(124,111,247,0.3)', boxShadow: baselinesReady ? '0 4px 24px rgba(124,111,247,0.4)' : 'none', cursor: busy || !baselinesReady ? 'not-allowed' : 'pointer' }}>
                 🚀 Jalankan Test Journey
               </button>
