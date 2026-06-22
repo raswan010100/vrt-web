@@ -1,74 +1,122 @@
-export interface AssertionResult {
-  /** CSS selector atau XPath elemen yang dicek */
+export type StepAction = 'fill' | 'click' | 'wait';
+
+export interface ActionStep {
+  /** Jenis aksi: isi field, klik elemen, atau tunggu */
+  action: StepAction;
+  /** CSS selector atau XPath target (tidak dipakai untuk action 'wait') */
   selector: string;
-  /** Teks yang diharapkan terkandung di elemen */
+  /** Nilai: teks untuk 'fill', milidetik untuk 'wait', diabaikan untuk 'click' */
+  value: string;
+}
+
+export interface AssertionInput {
+  selector: string;
   expected: string;
-  /** Teks aktual elemen (null jika elemen tidak ditemukan) */
+}
+
+export interface AssertionResult {
+  selector: string;
+  expected: string;
   actual: string | null;
-  /** Apakah elemen ditemukan */
   found: boolean;
-  /** Lolos jika elemen ditemukan DAN teksnya mengandung `expected` */
   passed: boolean;
 }
 
-export interface ReportData {
-  url: string;
-  viewport: { width: number; height: number; name: string };
-  threshold: number;
+/** Hasil satu checkpoint dalam journey */
+export interface CheckpointResult {
+  name: string;
   diffPercentage: number;
   diffPixels: number;
   totalPixels: number;
   sizeMismatch: boolean;
+  /** Lolos visual (diff <= threshold) */
   passed: boolean;
+  assertionResults: AssertionResult[];
+  images: { baseline: string; current: string; diff: string };
+}
+
+export interface JourneyReportData {
+  url: string;
+  viewport: { width: number; height: number; name: string };
+  threshold: number;
   timestamp: string;
   duration: number;
-  images: {
-    baseline: string;
-    current: string;
-    diff: string;
-  };
-  assertionResults?: AssertionResult[];
+  results: CheckpointResult[];
 }
 
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 }
 
-export function generateReportHTML(data: ReportData): string {
-  const assertions = data.assertionResults ?? [];
-  const allAssertionsPassed = assertions.every((a) => a.passed);
-  const overallPassed = data.passed && allAssertionsPassed;
-  const visualColor = data.passed ? '#22d47a' : '#f04f5c';
-  const status = overallPassed ? '✅ PASSED' : '❌ FAILED';
-  const statusColor = overallPassed ? '#22d47a' : '#f04f5c';
-  const generatedAt = new Date().toLocaleString('id-ID', {
-    dateStyle: 'full',
-    timeStyle: 'medium',
-  });
+/** Status keseluruhan satu checkpoint = visual lolos DAN semua assertion lolos */
+function checkpointPassed(r: CheckpointResult): boolean {
+  return r.passed && r.assertionResults.every((a) => a.passed);
+}
 
-  const assertionSection = assertions.length === 0 ? '' : `
-  <div class="assert-section">
-    <div class="section-title">Cek Konten Elemen</div>
-    <div class="assert-summary">${assertions.filter((a) => a.passed).length}/${assertions.length} assertion lolos</div>
-    ${assertions.map((a) => `
-    <div class="assert-row ${a.passed ? 'pass' : 'fail'}">
-      <div class="assert-icon">${a.passed ? '✅' : '❌'}</div>
-      <div class="assert-body">
-        <div class="assert-sel"><code>${esc(a.selector)}</code></div>
-        <div class="assert-detail">
-          <span>Diharapkan mengandung: <strong>"${esc(a.expected)}"</strong></span>
-          <span class="assert-actual">${a.found ? `Teks aktual: "${esc((a.actual ?? '').slice(0, 200))}"` : 'Elemen tidak ditemukan'}</span>
-        </div>
-      </div>
-    </div>`).join('')}
+export function generateReportHTML(data: JourneyReportData): string {
+  const results = data.results;
+  const total = results.length;
+  const passedCount = results.filter(checkpointPassed).length;
+  const overallPassed = passedCount === total;
+  const overallColor = overallPassed ? '#22d47a' : '#f04f5c';
+  const generatedAt = new Date().toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' });
+
+  const checkpointBlocks = results
+    .map((r, idx) => {
+      const cpId = `cp${idx}`;
+      const passed = checkpointPassed(r);
+      const visualColor = r.passed ? '#22d47a' : '#f04f5c';
+      const cpColor = passed ? '#22d47a' : '#f04f5c';
+      const assertPassed = r.assertionResults.filter((a) => a.passed).length;
+
+      const assertHtml =
+        r.assertionResults.length === 0
+          ? ''
+          : `<div class="assert-summary">Cek konten: ${assertPassed}/${r.assertionResults.length} lolos</div>
+             ${r.assertionResults.map((a) => `
+             <div class="assert-row ${a.passed ? 'pass' : 'fail'}">
+               <div class="assert-icon">${a.passed ? '✅' : '❌'}</div>
+               <div class="assert-body">
+                 <div class="assert-sel"><code>${esc(a.selector)}</code></div>
+                 <div class="assert-detail">
+                   <span>Diharapkan mengandung: <strong>"${esc(a.expected)}"</strong></span>
+                   <span class="assert-actual">${a.found ? `Teks aktual: "${esc((a.actual ?? '').slice(0, 200))}"` : 'Elemen tidak ditemukan'}</span>
+                 </div>
+               </div>
+             </div>`).join('')}`;
+
+      return `
+  <div class="checkpoint" id="${cpId}">
+    <div class="cp-header">
+      <div class="cp-title"><span class="cp-num">${idx + 1}</span> ${esc(r.name || 'Checkpoint ' + (idx + 1))}</div>
+      <div class="cp-status" style="color:${cpColor};border-color:${cpColor}33;background:${cpColor}11">${passed ? '✅ PASSED' : '❌ FAILED'}</div>
+    </div>
+    <div class="cp-meta">
+      <span style="color:${visualColor}">Visual: ${r.diffPercentage.toFixed(3)}% diff</span>
+      <span>·</span>
+      <span>${r.diffPixels.toLocaleString()} / ${r.totalPixels.toLocaleString()} pixel</span>
+      ${r.sizeMismatch ? '<span>· ⚠️ ukuran berbeda</span>' : ''}
+    </div>
+    <div class="diff-bar-track"><div class="diff-bar-fill" style="width:${Math.min(r.diffPercentage * 20, 100)}%"></div></div>
+    ${assertHtml}
+    <div class="tabs">
+      <button class="tab-btn active" onclick="show('${cpId}','baseline',this)">Baseline</button>
+      <button class="tab-btn" onclick="show('${cpId}','current',this)">Current</button>
+      <button class="tab-btn" onclick="show('${cpId}','diff',this)">Diff</button>
+    </div>
+    <div id="${cpId}-baseline" class="tab-panel active"><img src="${r.images.baseline}" alt="Baseline" /></div>
+    <div id="${cpId}-current"  class="tab-panel"><img src="${r.images.current}" alt="Current" /></div>
+    <div id="${cpId}-diff"     class="tab-panel"><img src="${r.images.diff}" alt="Diff" /></div>
   </div>`;
+    })
+    .join('\n');
 
   return `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VRT Report — ${data.url}</title>
+  <title>VRT Journey Report — ${esc(data.url)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
@@ -81,83 +129,57 @@ export function generateReportHTML(data: ReportData): string {
     }
     body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6; }
     .wrap { max-width: 1100px; margin: 0 auto; padding: 48px 24px 80px; }
-
-    /* header */
     .header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px; padding-bottom: 32px; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
     .logo { display: flex; align-items: center; gap: 12px; }
     .logo-icon { width: 44px; height: 44px; background: linear-gradient(135deg,#7c6ff7,#5b8ef0); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
     h1 { font-size: 22px; font-weight: 700; background: linear-gradient(135deg,#fff 30%,#a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .meta { font-size: 12px; color: var(--muted); text-align: right; }
     .meta strong { color: var(--text); }
-
-    /* summary */
     .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 36px; }
     .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; }
     .card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
     .card-value { font-size: 28px; font-weight: 700; letter-spacing: -1px; }
-    .card.status { border-color: ${overallPassed ? 'rgba(34,212,122,0.25)' : 'rgba(240,79,92,0.25)'}; background: ${overallPassed ? 'rgba(34,212,122,0.06)' : 'rgba(240,79,92,0.06)'}; }
-    .card.status .card-value { color: ${statusColor}; font-size: 20px; }
+    .card.status { border-color: ${overallColor}44; background: ${overallColor}11; }
+    .card.status .card-value { color: ${overallColor}; font-size: 20px; }
     .card-sub { font-size: 12px; color: var(--muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
 
-    /* diff bar */
-    .diff-bar-wrap { margin-bottom: 36px; }
-    .diff-bar-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 8px; }
-    .diff-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg,#22d47a,#f04f5c); width: ${Math.min(data.diffPercentage * 20, 100)}%; }
-    .diff-bar-label { font-size: 13px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+    .checkpoint { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+    .cp-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .cp-title { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .cp-num { width: 26px; height: 26px; border-radius: 8px; background: rgba(124,111,247,0.15); color: var(--accent2); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
+    .cp-status { font-size: 13px; font-weight: 700; padding: 4px 12px; border-radius: 999px; border: 1px solid; }
+    .cp-meta { font-size: 13px; color: var(--muted); font-family: 'JetBrains Mono', monospace; display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .diff-bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 16px; }
+    .diff-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#22d47a,#f04f5c); }
 
-    /* image section */
-    .section-title { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 16px; }
-    .tabs { border-bottom: 1px solid var(--border); display: flex; gap: 0; margin-bottom: 0; }
-    .tab-btn { padding: 10px 18px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: all .2s; }
-    .tab-btn:hover { color: var(--text); }
-    .tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent2); }
-    .tab-panel { display: none; padding: 20px; background: var(--bg3); border: 1px solid var(--border); border-top: none; border-radius: 0 0 14px 14px; }
-    .tab-panel.active { display: block; }
-    .tab-panel img { width: 100%; border-radius: 8px; border: 1px solid var(--border); display: block; }
-    .img-wrap { border-radius: 14px 14px 0 0; overflow: hidden; border: 1px solid var(--border); border-bottom: none; }
-
-    /* compare slider */
-    .compare-slider { position: relative; overflow: hidden; border-radius: 8px; cursor: col-resize; user-select: none; border: 1px solid var(--border); }
-    .compare-baseline, .compare-current { position: absolute; top:0; left:0; width:100%; height:100%; }
-    .compare-baseline img, .compare-current img { width:100%; display:block; border:none; border-radius:0; }
-    .compare-current { clip-path: inset(0 50% 0 0); }
-    .compare-handle { position:absolute; top:0; left:50%; height:100%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; pointer-events:none; }
-    .handle-line { width:2px; height:100%; background:rgba(255,255,255,.8); }
-    .handle-circle { position:absolute; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; background:#fff; color:#333; font-size:14px; display:flex; align-items:center; justify-content:center; font-weight:700; box-shadow:0 2px 12px rgba(0,0,0,.4); }
-    .compare-hint { text-align:center; font-size:12px; color:var(--muted); padding:8px; }
-
-    /* info footer */
-    .info { margin-top: 36px; padding: 20px 24px; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; font-size: 13px; color: var(--muted); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-    .info-item strong { color: var(--text); display: block; }
-    .info-item code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent2); }
-
-    /* assertions */
-    .assert-section { margin-bottom: 36px; }
-    .assert-summary { font-size: 13px; color: var(--muted); margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; }
-    .assert-row { display: flex; gap: 12px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); margin-bottom: 8px; }
+    .assert-summary { font-size: 12px; color: var(--muted); margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
+    .assert-row { display: flex; gap: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 8px; }
     .assert-row.pass { border-color: rgba(34,212,122,0.2); }
     .assert-row.fail { border-color: rgba(240,79,92,0.25); background: rgba(240,79,92,0.04); }
-    .assert-icon { font-size: 16px; line-height: 1.4; }
+    .assert-icon { font-size: 15px; }
     .assert-body { flex: 1; min-width: 0; }
-    .assert-sel code { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent2); word-break: break-all; }
+    .assert-sel code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent2); word-break: break-all; }
     .assert-detail { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: 12px; color: var(--muted); }
     .assert-detail strong { color: var(--text); }
     .assert-actual { color: var(--dim); }
 
-    ::-webkit-scrollbar { width:6px; height:6px; }
-    ::-webkit-scrollbar-track { background: var(--bg); }
-    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius:3px; }
+    .tabs { border-bottom: 1px solid var(--border); display: flex; gap: 0; margin-top: 8px; }
+    .tab-btn { padding: 10px 18px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+    .tab-panel { display: none; padding-top: 16px; }
+    .tab-panel.active { display: block; }
+    .tab-panel img { width: 100%; border-radius: 8px; border: 1px solid var(--border); display: block; }
   </style>
 </head>
 <body>
 <div class="wrap">
-
   <div class="header">
     <div class="logo">
       <div class="logo-icon">🔍</div>
       <div>
-        <h1>Visual Regression Report</h1>
-        <div style="font-size:13px;color:#8888a8;margin-top:2px">Playwright + pixelmatch</div>
+        <h1>VRT Journey Report</h1>
+        <div style="font-size:13px;color:#8888a8;margin-top:2px">Playwright + pixelmatch — ${total} checkpoint</div>
       </div>
     </div>
     <div class="meta">
@@ -168,100 +190,34 @@ export function generateReportHTML(data: ReportData): string {
 
   <div class="summary">
     <div class="card status">
-      <div class="card-label">Status</div>
-      <div class="card-value">${status}</div>
-      <div class="card-sub">threshold: ${data.threshold}%</div>
+      <div class="card-label">Status Journey</div>
+      <div class="card-value">${overallPassed ? '✅ PASSED' : '❌ FAILED'}</div>
+      <div class="card-sub">${passedCount}/${total} checkpoint lolos</div>
     </div>
     <div class="card">
-      <div class="card-label">Diff Percentage</div>
-      <div class="card-value" style="color:${visualColor}">${data.diffPercentage.toFixed(3)}%</div>
-      <div class="card-sub">${data.diffPixels.toLocaleString()} pixels berbeda</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Total Pixels</div>
-      <div class="card-value">${(data.totalPixels / 1000).toFixed(0)}K</div>
-      <div class="card-sub">${data.viewport.width} × ${data.viewport.height} px</div>
+      <div class="card-label">URL</div>
+      <div class="card-value" style="font-size:14px;word-break:break-all">${esc(data.url)}</div>
     </div>
     <div class="card">
       <div class="card-label">Viewport</div>
       <div class="card-value" style="font-size:20px">${data.viewport.name}</div>
       <div class="card-sub">${data.viewport.width} × ${data.viewport.height}</div>
     </div>
-  </div>
-
-  <div class="diff-bar-wrap">
-    <div class="diff-bar-label">${data.diffPercentage.toFixed(3)}% diff dari ${data.totalPixels.toLocaleString()} total pixel</div>
-    <div class="diff-bar-track"><div class="diff-bar-fill"></div></div>
-  </div>
-${assertionSection}
-  <div class="section-title">Perbandingan Screenshot</div>
-  <div class="img-wrap">
-    <div class="tabs">
-      <button class="tab-btn active" onclick="show('baseline',this)">Baseline</button>
-      <button class="tab-btn" onclick="show('current',this)">Current</button>
-      <button class="tab-btn" onclick="show('diff',this)">Diff</button>
-      <button class="tab-btn" onclick="show('compare',this)">Compare ⟷</button>
+    <div class="card">
+      <div class="card-label">Threshold</div>
+      <div class="card-value" style="font-size:20px">${data.threshold}%</div>
+      <div class="card-sub">${new Date(data.timestamp).toLocaleString('id-ID')}</div>
     </div>
   </div>
-  <div id="baseline" class="tab-panel active"><img src="${data.images.baseline}" alt="Baseline" /></div>
-  <div id="current"  class="tab-panel"><img src="${data.images.current}" alt="Current" /></div>
-  <div id="diff"     class="tab-panel"><img src="${data.images.diff}" alt="Diff" /></div>
-  <div id="compare"  class="tab-panel">
-    <div class="compare-slider" id="slider">
-      <div class="compare-baseline"><img src="${data.images.baseline}" alt="Baseline" /></div>
-      <div class="compare-current"><img src="${data.images.current}" alt="Current" /></div>
-      <div class="compare-handle">
-        <div class="handle-line"></div>
-        <div class="handle-circle">⟷</div>
-      </div>
-    </div>
-    <p class="compare-hint">← Drag untuk membandingkan →</p>
-  </div>
-
-  <div class="info">
-    <div class="info-item"><strong>URL</strong><code>${data.url}</code></div>
-    <div class="info-item"><strong>Waktu Test</strong><code>${new Date(data.timestamp).toLocaleString('id-ID')}</code></div>
-    <div class="info-item"><strong>Viewport</strong><code>${data.viewport.width}×${data.viewport.height} (${data.viewport.name})</code></div>
-    <div class="info-item"><strong>Size Mismatch</strong><code>${data.sizeMismatch ? 'Ya — gambar di-pad otomatis' : 'Tidak'}</code></div>
-  </div>
-
+${checkpointBlocks}
 </div>
 <script>
-  function show(id, btn) {
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
+  function show(cpId, which, btn) {
+    var root = document.getElementById(cpId);
+    root.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+    root.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    document.getElementById(cpId + '-' + which).classList.add('active');
     btn.classList.add('active');
-    if (id === 'compare') initSlider();
-  }
-  let sliderReady = false;
-  function initSlider() {
-    if (sliderReady) return;
-    sliderReady = true;
-    const slider = document.getElementById('slider');
-    const current = slider.querySelector('.compare-current');
-    const handle = slider.querySelector('.compare-handle');
-    const img = slider.querySelector('.compare-baseline img');
-    function setHeight() {
-      const ratio = img.naturalHeight / img.naturalWidth;
-      slider.style.paddingBottom = (ratio * 100) + '%';
-      slider.style.height = '0';
-    }
-    img.complete ? setHeight() : img.onload = setHeight;
-    let drag = false;
-    function move(e) {
-      const rect = slider.getBoundingClientRect();
-      const x = Math.max(0, Math.min((e.touches ? e.touches[0].clientX : e.clientX) - rect.left, rect.width));
-      const pct = (x / rect.width) * 100;
-      current.style.clipPath = 'inset(0 ' + (100 - pct) + '% 0 0)';
-      handle.style.left = pct + '%';
-    }
-    slider.addEventListener('mousedown', e => { drag = true; move(e); });
-    slider.addEventListener('touchstart', e => { drag = true; move(e); });
-    window.addEventListener('mousemove', e => drag && move(e));
-    window.addEventListener('touchmove', e => drag && move(e));
-    window.addEventListener('mouseup', () => drag = false);
-    window.addEventListener('touchend', () => drag = false);
   }
 </script>
 </body>
