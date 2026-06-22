@@ -370,6 +370,64 @@ export default function Home() {
     URL.revokeObjectURL(link.href);
   }
 
+  // ── Export / Import konfigurasi journey ────────────────────────────────────
+
+  function exportConfig() {
+    const config = {
+      type: 'vrt-journey-config',
+      version: 1,
+      url,
+      selectedPreset,
+      customW,
+      customH,
+      threshold,
+      checkpoints: checkpoints.map((c) => ({
+        name: c.name,
+        steps: c.steps,
+        hide: c.hide,
+        assertions: c.assertions,
+        baseline: c.baseline,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `vrt-config-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  function importConfig(file: File) {
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const cfg = JSON.parse(e.target?.result as string);
+        if (!cfg || !Array.isArray(cfg.checkpoints)) throw new Error('Format file tidak dikenali.');
+        if (typeof cfg.url === 'string') setUrl(cfg.url);
+        if (Number.isInteger(cfg.selectedPreset) && cfg.selectedPreset >= 0 && cfg.selectedPreset < VIEWPORT_PRESETS.length) setSelectedPreset(cfg.selectedPreset);
+        if (typeof cfg.customW === 'number') setCustomW(cfg.customW);
+        if (typeof cfg.customH === 'number') setCustomH(cfg.customH);
+        if (typeof cfg.threshold === 'number') setThreshold(cfg.threshold);
+        setCheckpoints(
+          cfg.checkpoints.map((c: Partial<CheckpointUI>, i: number) => ({
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Math.random()),
+            name: c.name ?? `Checkpoint ${i + 1}`,
+            steps: Array.isArray(c.steps) ? c.steps : [],
+            hide: typeof c.hide === 'string' ? c.hide : '',
+            assertions: Array.isArray(c.assertions) ? c.assertions : [],
+            baseline: typeof c.baseline === 'string' ? c.baseline : null,
+          }))
+        );
+        setStep('form');
+        setResult(null);
+      } catch (err) {
+        setError(err instanceof Error ? `Gagal import: ${err.message}` : 'Gagal import file.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
   const baselinesReady = checkpoints.every((c) => c.baseline);
   const cpPassed = (r: CheckpointResult) => r.passed && r.assertionResults.every((a) => a.passed);
 
@@ -380,12 +438,25 @@ export default function Home() {
 
         {/* Header */}
         <div className="mb-10">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg,#7c6ff7,#5b8ef0)', boxShadow: '0 4px 16px rgba(124,111,247,0.4)' }}>🔍</div>
-            <h1 className="text-2xl font-bold" style={{ background: 'linear-gradient(135deg,#fff 30%,#a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Visual Regression — Journey</h1>
+          <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg,#7c6ff7,#5b8ef0)', boxShadow: '0 4px 16px rgba(124,111,247,0.4)' }}>🔍</div>
+              <h1 className="text-2xl font-bold" style={{ background: 'linear-gradient(135deg,#fff 30%,#a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Visual Regression — Journey</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={exportConfig}
+                className="text-sm px-3 py-2 rounded-xl font-medium" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                ⬇ Export
+              </button>
+              <label className="text-sm px-3 py-2 rounded-xl font-medium cursor-pointer" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                ⬆ Import
+                <input type="file" accept="application/json,.json" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) importConfig(f); e.target.value = ''; }} />
+              </label>
+            </div>
           </div>
           <p style={{ color: 'var(--muted)', fontSize: 14 }}>
-            Uji UI bertahap dalam satu sesi: sebelum login → sesudah login → halaman berikutnya. State login terbawa antar-checkpoint.
+            Uji UI bertahap dalam satu sesi: sebelum login → sesudah login → halaman berikutnya. State login terbawa antar-checkpoint. Pakai <strong style={{ color: '#a78bfa' }}>Export/Import</strong> agar konfigurasi & baseline tidak hilang saat server restart.
           </p>
         </div>
 
