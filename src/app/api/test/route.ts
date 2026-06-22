@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
+    // ignoreHTTPSErrors: izinkan server internal dengan sertifikat self-signed
+    const page = await browser.newPage({ ignoreHTTPSErrors: true });
     await page.setViewportSize({ width, height });
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     await page.waitForTimeout(1000);
