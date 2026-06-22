@@ -222,9 +222,17 @@ export default function Home() {
   const [step, setStep] = useState<'form' | 'loading' | 'result'>('form');
   const [result, setResult] = useState<JourneyReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [busy, setBusy] = useState<'' | 'capture' | 'test'>('');
   const [capturingId, setCapturingId] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState('');
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showNotice(type: 'success' | 'error', msg: string) {
+    setNotice({ type, msg });
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(null), 4500);
+  }
 
   const [url, setUrl] = useState('');
   const [selectedPreset, setSelectedPreset] = useState(0);
@@ -404,6 +412,7 @@ export default function Home() {
       try {
         const cfg = JSON.parse(e.target?.result as string);
         if (!cfg || !Array.isArray(cfg.checkpoints)) throw new Error('Format file tidak dikenali.');
+        const jumlah = cfg.checkpoints.length;
         if (typeof cfg.url === 'string') setUrl(cfg.url);
         if (Number.isInteger(cfg.selectedPreset) && cfg.selectedPreset >= 0 && cfg.selectedPreset < VIEWPORT_PRESETS.length) setSelectedPreset(cfg.selectedPreset);
         if (typeof cfg.customW === 'number') setCustomW(cfg.customW);
@@ -421,10 +430,12 @@ export default function Home() {
         );
         setStep('form');
         setResult(null);
+        showNotice('success', `Berhasil import — ${jumlah} checkpoint dimuat.`);
       } catch (err) {
-        setError(err instanceof Error ? `Gagal import: ${err.message}` : 'Gagal import file.');
+        showNotice('error', err instanceof Error ? `Gagal import: ${err.message}` : 'Gagal import file.');
       }
     };
+    reader.onerror = () => showNotice('error', 'Gagal membaca file.');
     reader.readAsText(file);
   }
 
@@ -459,6 +470,17 @@ export default function Home() {
             Uji UI bertahap dalam satu sesi: sebelum login → sesudah login → halaman berikutnya. State login terbawa antar-checkpoint. Pakai <strong style={{ color: '#a78bfa' }}>Export/Import</strong> agar konfigurasi & baseline tidak hilang saat server restart.
           </p>
         </div>
+
+        {notice && (
+          <div className="rounded-xl px-4 py-3 text-sm mb-6 flex items-center gap-2" style={{
+            background: notice.type === 'success' ? 'rgba(34,212,122,0.08)' : 'rgba(240,79,92,0.08)',
+            border: `1px solid ${notice.type === 'success' ? 'rgba(34,212,122,0.35)' : 'rgba(240,79,92,0.35)'}`,
+            color: notice.type === 'success' ? '#22d47a' : '#f04f5c',
+          }}>
+            <span>{notice.type === 'success' ? '✅' : '⚠️'}</span>
+            <span style={{ fontWeight: 500 }}>{notice.msg}</span>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-xl px-4 py-3 text-sm mb-6" style={{ background: 'rgba(240,79,92,0.08)', border: '1px solid rgba(240,79,92,0.25)', color: '#f04f5c' }}>⚠️ {error}</div>
