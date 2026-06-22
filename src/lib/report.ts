@@ -1,3 +1,16 @@
+export interface AssertionResult {
+  /** CSS selector atau XPath elemen yang dicek */
+  selector: string;
+  /** Teks yang diharapkan terkandung di elemen */
+  expected: string;
+  /** Teks aktual elemen (null jika elemen tidak ditemukan) */
+  actual: string | null;
+  /** Apakah elemen ditemukan */
+  found: boolean;
+  /** Lolos jika elemen ditemukan DAN teksnya mengandung `expected` */
+  passed: boolean;
+}
+
 export interface ReportData {
   url: string;
   viewport: { width: number; height: number; name: string };
@@ -14,15 +27,41 @@ export interface ReportData {
     current: string;
     diff: string;
   };
+  assertionResults?: AssertionResult[];
+}
+
+function esc(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 }
 
 export function generateReportHTML(data: ReportData): string {
-  const status = data.passed ? '✅ PASSED' : '❌ FAILED';
-  const statusColor = data.passed ? '#22d47a' : '#f04f5c';
+  const assertions = data.assertionResults ?? [];
+  const allAssertionsPassed = assertions.every((a) => a.passed);
+  const overallPassed = data.passed && allAssertionsPassed;
+  const visualColor = data.passed ? '#22d47a' : '#f04f5c';
+  const status = overallPassed ? '✅ PASSED' : '❌ FAILED';
+  const statusColor = overallPassed ? '#22d47a' : '#f04f5c';
   const generatedAt = new Date().toLocaleString('id-ID', {
     dateStyle: 'full',
     timeStyle: 'medium',
   });
+
+  const assertionSection = assertions.length === 0 ? '' : `
+  <div class="assert-section">
+    <div class="section-title">Cek Konten Elemen</div>
+    <div class="assert-summary">${assertions.filter((a) => a.passed).length}/${assertions.length} assertion lolos</div>
+    ${assertions.map((a) => `
+    <div class="assert-row ${a.passed ? 'pass' : 'fail'}">
+      <div class="assert-icon">${a.passed ? '✅' : '❌'}</div>
+      <div class="assert-body">
+        <div class="assert-sel"><code>${esc(a.selector)}</code></div>
+        <div class="assert-detail">
+          <span>Diharapkan mengandung: <strong>"${esc(a.expected)}"</strong></span>
+          <span class="assert-actual">${a.found ? `Teks aktual: "${esc((a.actual ?? '').slice(0, 200))}"` : 'Elemen tidak ditemukan'}</span>
+        </div>
+      </div>
+    </div>`).join('')}
+  </div>`;
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -56,7 +95,7 @@ export function generateReportHTML(data: ReportData): string {
     .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; }
     .card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
     .card-value { font-size: 28px; font-weight: 700; letter-spacing: -1px; }
-    .card.status { border-color: ${data.passed ? 'rgba(34,212,122,0.25)' : 'rgba(240,79,92,0.25)'}; background: ${data.passed ? 'rgba(34,212,122,0.06)' : 'rgba(240,79,92,0.06)'}; }
+    .card.status { border-color: ${overallPassed ? 'rgba(34,212,122,0.25)' : 'rgba(240,79,92,0.25)'}; background: ${overallPassed ? 'rgba(34,212,122,0.06)' : 'rgba(240,79,92,0.06)'}; }
     .card.status .card-value { color: ${statusColor}; font-size: 20px; }
     .card-sub { font-size: 12px; color: var(--muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
 
@@ -92,6 +131,19 @@ export function generateReportHTML(data: ReportData): string {
     .info-item strong { color: var(--text); display: block; }
     .info-item code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent2); }
 
+    /* assertions */
+    .assert-section { margin-bottom: 36px; }
+    .assert-summary { font-size: 13px; color: var(--muted); margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; }
+    .assert-row { display: flex; gap: 12px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); margin-bottom: 8px; }
+    .assert-row.pass { border-color: rgba(34,212,122,0.2); }
+    .assert-row.fail { border-color: rgba(240,79,92,0.25); background: rgba(240,79,92,0.04); }
+    .assert-icon { font-size: 16px; line-height: 1.4; }
+    .assert-body { flex: 1; min-width: 0; }
+    .assert-sel code { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent2); word-break: break-all; }
+    .assert-detail { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: 12px; color: var(--muted); }
+    .assert-detail strong { color: var(--text); }
+    .assert-actual { color: var(--dim); }
+
     ::-webkit-scrollbar { width:6px; height:6px; }
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius:3px; }
@@ -122,7 +174,7 @@ export function generateReportHTML(data: ReportData): string {
     </div>
     <div class="card">
       <div class="card-label">Diff Percentage</div>
-      <div class="card-value" style="color:${statusColor}">${data.diffPercentage.toFixed(3)}%</div>
+      <div class="card-value" style="color:${visualColor}">${data.diffPercentage.toFixed(3)}%</div>
       <div class="card-sub">${data.diffPixels.toLocaleString()} pixels berbeda</div>
     </div>
     <div class="card">
@@ -141,7 +193,7 @@ export function generateReportHTML(data: ReportData): string {
     <div class="diff-bar-label">${data.diffPercentage.toFixed(3)}% diff dari ${data.totalPixels.toLocaleString()} total pixel</div>
     <div class="diff-bar-track"><div class="diff-bar-fill"></div></div>
   </div>
-
+${assertionSection}
   <div class="section-title">Perbandingan Screenshot</div>
   <div class="img-wrap">
     <div class="tabs">

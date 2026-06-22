@@ -33,6 +33,11 @@ export default function Home() {
   const [threshold, setThreshold] = useState(0.1);
   const [isDragging, setIsDragging] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [hideSelectors, setHideSelectors] = useState<string[]>([]);
+  const [selectorInput, setSelectorInput] = useState('');
+  const [assertions, setAssertions] = useState<{ selector: string; expected: string }[]>([]);
+  const [assertSelector, setAssertSelector] = useState('');
+  const [assertExpected, setAssertExpected] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const compareSliderRef = useRef<HTMLDivElement>(null);
@@ -42,6 +47,11 @@ export default function Home() {
   const viewport = preset.name === 'Custom'
     ? { name: 'Custom', width: customW, height: customH }
     : { name: preset.name, width: preset.width, height: preset.height };
+
+  // Status keseluruhan = visual lolos DAN semua assertion lolos
+  const assertionResults = result?.assertionResults ?? [];
+  const allAssertPassed = assertionResults.every((a) => a.passed);
+  const overallPassed = (result?.passed ?? false) && allAssertPassed;
 
   // ── File handling ──────────────────────────────────────────────────────────
 
@@ -64,6 +74,35 @@ export default function Home() {
     if (file) handleFile(file);
   }, [handleFile]);
 
+  // ── Hide selectors ────────────────────────────────────────────────────────
+
+  function addSelector() {
+    const val = selectorInput.trim();
+    if (!val || hideSelectors.includes(val)) return;
+    setHideSelectors((prev) => [...prev, val]);
+    setSelectorInput('');
+  }
+
+  function removeSelector(sel: string) {
+    setHideSelectors((prev) => prev.filter((s) => s !== sel));
+  }
+
+  // ── Content assertions ────────────────────────────────────────────────────
+
+  function addAssertion() {
+    const sel = assertSelector.trim();
+    const exp = assertExpected.trim();
+    if (!sel || !exp) return;
+    if (assertions.some((a) => a.selector === sel && a.expected === exp)) return;
+    setAssertions((prev) => [...prev, { selector: sel, expected: exp }]);
+    setAssertSelector('');
+    setAssertExpected('');
+  }
+
+  function removeAssertion(idx: number) {
+    setAssertions((prev) => prev.filter((_, i) => i !== idx));
+  }
+
   // ── Auto screenshot ───────────────────────────────────────────────────────
 
   async function handleAutoScreenshot() {
@@ -78,7 +117,7 @@ export default function Home() {
       const res = await fetch('/api/screenshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), width: viewport.width, height: viewport.height }),
+        body: JSON.stringify({ url: url.trim(), width: viewport.width, height: viewport.height, hideSelectors }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal mengambil screenshot.');
@@ -106,6 +145,27 @@ export default function Home() {
     if (!url.startsWith('http')) { setError('URL harus dimulai dengan http:// atau https://'); return; }
     if (viewport.width < 1 || viewport.height < 1) { setError('Ukuran viewport tidak valid.'); return; }
 
+    // Auto-commit input yang belum di-"Tambah" supaya tidak terlewat saat submit.
+    const effectiveHideSelectors = [...hideSelectors];
+    const pendingHide = selectorInput.trim();
+    if (pendingHide && !effectiveHideSelectors.includes(pendingHide)) {
+      effectiveHideSelectors.push(pendingHide);
+    }
+
+    const effectiveAssertions = [...assertions];
+    const pendingSel = assertSelector.trim();
+    const pendingExp = assertExpected.trim();
+    if (pendingSel && pendingExp &&
+        !effectiveAssertions.some((a) => a.selector === pendingSel && a.expected === pendingExp)) {
+      effectiveAssertions.push({ selector: pendingSel, expected: pendingExp });
+    }
+    // Sinkronkan ke state agar UI ikut menampilkan chip-nya.
+    setHideSelectors(effectiveHideSelectors);
+    setAssertions(effectiveAssertions);
+    setSelectorInput('');
+    setAssertSelector('');
+    setAssertExpected('');
+
     setStep('loading');
     setError(null);
 
@@ -131,6 +191,8 @@ export default function Home() {
       fd.append('height', String(viewport.height));
       fd.append('viewportName', viewport.name);
       fd.append('threshold', String(threshold));
+      fd.append('hideSelectors', JSON.stringify(effectiveHideSelectors));
+      fd.append('assertions', JSON.stringify(effectiveAssertions));
 
       const res = await fetch('/api/test', { method: 'POST', body: fd });
       const data = await res.json();
@@ -366,6 +428,151 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Hide Selectors */}
+            <div className="rounded-2xl p-6" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                  5. Sembunyikan Elemen Dinamis
+                </label>
+                <span className="text-xs px-2 py-0.5 rounded-md" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--muted)' }}>
+                  Opsional
+                </span>
+              </div>
+              <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
+                Masukkan <strong style={{ color: '#a78bfa' }}>CSS selector</strong> atau <strong style={{ color: '#a78bfa' }}>XPath</strong> elemen yang ingin disembunyikan sebelum screenshot — cocok untuk teks dinamis seperti tanggal, jam, counter, iklan, dll. <span style={{ color: 'var(--text)' }}>XPath dideteksi otomatis jika diawali</span> <code style={{ color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace" }}>/</code> <span style={{ color: 'var(--text)' }}>atau</span> <code style={{ color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace" }}>(</code>.
+              </p>
+
+              {/* Input tambah selector */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={selectorInput}
+                  onChange={(e) => setSelectorInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSelector())}
+                  placeholder=".timestamp  atau  //div[@class='jam']"
+                  className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)',
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#7c6ff7'}
+                  onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
+                />
+                <button
+                  type="button"
+                  onClick={addSelector}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                  style={{ background: 'rgba(124,111,247,0.15)', color: '#a78bfa', border: '1px solid rgba(124,111,247,0.25)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(124,111,247,0.25)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(124,111,247,0.15)')}>
+                  + Tambah
+                </button>
+              </div>
+
+              {/* Daftar selector */}
+              {hideSelectors.length > 0 ? (
+                <div className="space-y-2">
+                  {hideSelectors.map((sel) => (
+                    <div key={sel} className="flex items-center justify-between px-3 py-2 rounded-xl"
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                      <span className="text-sm" style={{ color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace" }}>
+                        {sel}
+                      </span>
+                      <button type="button" onClick={() => removeSelector(sel)}
+                        className="text-xs px-2 py-0.5 rounded-lg transition-colors"
+                        style={{ color: '#f04f5c', background: 'rgba(240,79,92,0.08)', border: '1px solid rgba(240,79,92,0.15)' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(240,79,92,0.18)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(240,79,92,0.08)')}>
+                        ✕ Hapus
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs py-3 text-center rounded-xl" style={{ color: 'var(--muted)', border: '1px dashed rgba(255,255,255,0.08)' }}>
+                  Belum ada selector — semua elemen akan ikut di-screenshot
+                </div>
+              )}
+            </div>
+
+            {/* Content Assertions */}
+            <div className="rounded-2xl p-6" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                  6. Cek Konten Elemen
+                </label>
+                <span className="text-xs px-2 py-0.5 rounded-md" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--muted)' }}>
+                  Opsional
+                </span>
+              </div>
+              <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
+                Pastikan sebuah elemen <strong style={{ color: '#a78bfa' }}>mengandung</strong> teks/data tertentu. Isi <strong style={{ color: '#a78bfa' }}>selector</strong> (CSS atau XPath) + <strong style={{ color: '#a78bfa' }}>teks yang diharapkan</strong>. Test gagal jika elemen tidak ditemukan atau teksnya tidak mengandung data tsb.
+              </p>
+
+              {/* Input tambah assertion */}
+              <div className="flex flex-col md:flex-row gap-2 mb-3">
+                <input
+                  type="text"
+                  value={assertSelector}
+                  onChange={(e) => setAssertSelector(e.target.value)}
+                  placeholder="Selector: .harga  /  //h1"
+                  className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: "'JetBrains Mono', monospace" }}
+                  onFocus={(e) => (e.target.style.borderColor = '#7c6ff7')}
+                  onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
+                />
+                <input
+                  type="text"
+                  value={assertExpected}
+                  onChange={(e) => setAssertExpected(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addAssertion())}
+                  placeholder="Teks yang diharapkan: Rp 299K"
+                  className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                  onFocus={(e) => (e.target.style.borderColor = '#7c6ff7')}
+                  onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
+                />
+                <button
+                  type="button"
+                  onClick={addAssertion}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap"
+                  style={{ background: 'rgba(124,111,247,0.15)', color: '#a78bfa', border: '1px solid rgba(124,111,247,0.25)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(124,111,247,0.25)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(124,111,247,0.15)')}>
+                  + Tambah
+                </button>
+              </div>
+
+              {/* Daftar assertion */}
+              {assertions.length > 0 ? (
+                <div className="space-y-2">
+                  {assertions.map((a, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl"
+                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                      <div className="min-w-0 flex-1 text-sm" style={{ color: 'var(--muted)' }}>
+                        <span style={{ color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace" }}>{a.selector}</span>
+                        <span style={{ color: 'var(--dim)' }}> mengandung </span>
+                        <span style={{ color: 'var(--text)' }}>&quot;{a.expected}&quot;</span>
+                      </div>
+                      <button type="button" onClick={() => removeAssertion(idx)}
+                        className="text-xs px-2 py-0.5 rounded-lg transition-colors whitespace-nowrap"
+                        style={{ color: '#f04f5c', background: 'rgba(240,79,92,0.08)', border: '1px solid rgba(240,79,92,0.15)' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(240,79,92,0.18)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(240,79,92,0.08)')}>
+                        ✕ Hapus
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs py-3 text-center rounded-xl" style={{ color: 'var(--muted)', border: '1px dashed rgba(255,255,255,0.08)' }}>
+                  Belum ada pengecekan konten
+                </div>
+              )}
+            </div>
+
             {/* Submit */}
             <button type="submit"
               className="w-full py-4 rounded-2xl text-base font-semibold text-white transition-all"
@@ -406,15 +613,18 @@ export default function Home() {
             {/* Status banner */}
             <div className="rounded-2xl p-6 flex items-center justify-between flex-wrap gap-4"
               style={{
-                background: result.passed ? 'rgba(34,212,122,0.06)' : 'rgba(240,79,92,0.06)',
-                border: `1px solid ${result.passed ? 'rgba(34,212,122,0.25)' : 'rgba(240,79,92,0.25)'}`,
+                background: overallPassed ? 'rgba(34,212,122,0.06)' : 'rgba(240,79,92,0.06)',
+                border: `1px solid ${overallPassed ? 'rgba(34,212,122,0.25)' : 'rgba(240,79,92,0.25)'}`,
               }}>
               <div>
-                <div className="text-2xl font-bold mb-1" style={{ color: result.passed ? '#22d47a' : '#f04f5c' }}>
-                  {result.passed ? '✅ PASSED' : '❌ FAILED'}
+                <div className="text-2xl font-bold mb-1" style={{ color: overallPassed ? '#22d47a' : '#f04f5c' }}>
+                  {overallPassed ? '✅ PASSED' : '❌ FAILED'}
                 </div>
                 <div className="text-sm" style={{ color: 'var(--muted)' }}>
-                  {result.diffPercentage.toFixed(3)}% diff · {result.diffPixels.toLocaleString()} pixel berbeda dari {result.totalPixels.toLocaleString()} total
+                  Visual: {result.diffPercentage.toFixed(3)}% diff{result.passed ? ' ✓' : ' ✗'}
+                  {assertionResults.length > 0 && (
+                    <> · Konten: {assertionResults.filter((a) => a.passed).length}/{assertionResults.length} lolos{allAssertPassed ? ' ✓' : ' ✗'}</>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3">
@@ -449,6 +659,38 @@ export default function Home() {
                 </div>
               ))}
             </div>
+
+            {/* Assertion results */}
+            {assertionResults.length > 0 && (
+              <div className="rounded-2xl p-6" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Cek Konten Elemen</h3>
+                  <span className="text-xs font-mono" style={{ color: allAssertPassed ? '#22d47a' : '#f04f5c' }}>
+                    {assertionResults.filter((a) => a.passed).length}/{assertionResults.length} lolos
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {assertionResults.map((a, i) => (
+                    <div key={i} className="flex gap-3 px-4 py-3 rounded-xl"
+                      style={{
+                        background: a.passed ? 'rgba(34,212,122,0.04)' : 'rgba(240,79,92,0.04)',
+                        border: `1px solid ${a.passed ? 'rgba(34,212,122,0.2)' : 'rgba(240,79,92,0.25)'}`,
+                      }}>
+                      <span>{a.passed ? '✅' : '❌'}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm" style={{ color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace", wordBreak: 'break-all' }}>{a.selector}</div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                          Diharapkan mengandung: <strong style={{ color: 'var(--text)' }}>&quot;{a.expected}&quot;</strong>
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--dim)' }}>
+                          {a.found ? <>Teks aktual: &quot;{(a.actual ?? '').slice(0, 150)}&quot;</> : 'Elemen tidak ditemukan'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Image comparison */}
             <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
