@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
-  let body: { url: string; width: number; height: number };
+  let body: { url: string; width: number; height: number; hideSelectors?: string[] };
   try {
     body = await request.json();
   } catch {
