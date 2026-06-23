@@ -69,10 +69,10 @@ function StepEditor({ steps, onChange }: { steps: ActionStep[]; onChange: (s: Ac
               <span className="text-xs px-1" style={{ color: 'var(--muted)', fontFamily: 'monospace' }}>{i + 1}</span>
               <select value={step.action} onChange={(e) => upd(i, { action: e.target.value as ActionStep['action'] })}
                 className="rounded-lg px-2 py-1.5 text-xs outline-none" style={inputStyle}>
-                <option value="fill">Isi field</option>
-                <option value="click">Klik</option>
-                <option value="wait">Tunggu</option>
-                <option value="scroll">Scroll ke elemen</option>
+                <option value="fill"   style={{ background: '#141425', color: '#e8e8f0' }}>Isi field</option>
+                <option value="click"  style={{ background: '#141425', color: '#e8e8f0' }}>Klik</option>
+                <option value="wait"   style={{ background: '#141425', color: '#e8e8f0' }}>Tunggu</option>
+                <option value="scroll" style={{ background: '#141425', color: '#e8e8f0' }}>Scroll ke elemen</option>
               </select>
               {step.action !== 'wait' && (
                 <input type="text" value={step.selector} onChange={(e) => upd(i, { selector: e.target.value })}
