@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VRT Demo — Halaman Uji Coba</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:     #08080f;
+      --bg2:    #0f0f1a;
+      --bg3:    #141425;
+      --border: rgba(255,255,255,0.08);
+      --text:   #e8e8f0;
+      --muted:  #8888a8;
+      --accent: #7c6ff7;
+      --accent2:#a78bfa;
+      --green:  #22d47a;
+      --red:    #f04f5c;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(8,8,15,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 17px;
+    }
+    .nav-logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #7c6ff7, #5b8ef0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: linear-gradient(135deg, #7c6ff7, #5b8ef0);
+      color: #fff;
+      text-decoration: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 96px 24px 80px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(124,111,247,0.3);
+      background: rgba(124,111,247,0.08);
+      color: var(--accent2);
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 32px;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -2px;
+      background: linear-gradient(135deg, #fff 30%, #a78bfa 70%, #5b8ef0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 20px;
+    }
+    .hero p {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 40px;
+    }
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      padding: 14px 28px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #7c6ff7, #5b8ef0);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(124,111,247,0.4);
+    }
+    .btn-secondary {
+      padding: 14px 28px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    /* ── TIMESTAMP (dynamic element for VRT hide test) ── */
+    .dynamic-bar {
+      max-width: 1100px;
+      margin: 0 auto 0;
+      padding: 0 24px 40px;
+      text-align: center;
+    }
+    #live-time {
+      display: inline-block;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: monospace;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 6px;
+    }
+
+    /* ── FEATURES ── */
+    .section {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 64px 24px;
+    }
+    .section-label {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--accent2);
+      margin-bottom: 16px;
+    }
+    .section-title {
+      text-align: center;
+      font-size: clamp(24px, 4vw, 38px);
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+    }
+    .section-sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 16px;
+      max-width: 500px;
+      margin: 0 auto 48px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    @media (max-width: 768px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+    @media (max-width: 1024px) and (min-width: 769px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .feature-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      transition: border-color .2s, transform .2s;
+    }
+    .feature-card:hover {
+      border-color: rgba(124,111,247,0.3);
+      transform: translateY(-2px);
+    }
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(124,111,247,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 16px;
+    }
+    .feature-card h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ── STATS ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      border-radius: 20px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    @media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr; } }
+    .stat-item {
+      padding: 36px 28px;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-value {
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      background: linear-gradient(135deg, #a78bfa, #5b8ef0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-label {
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* ── PRICING ── */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 768px) { .pricing-grid { grid-template-columns: 1fr; } }
+
+    .price-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px 28px;
+    }
+    .price-card.popular {
+      border-color: var(--accent);
+      background: rgba(124,111,247,0.06);
+      position: relative;
+    }
+    .popular-badge {
+      position: absolute;
+      top: -13px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #7c6ff7, #5b8ef0);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .price-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .price-value {
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      margin-bottom: 4px;
+    }
+    .price-period { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+    .price-features { list-style: none; margin-bottom: 28px; }
+    .price-features li {
+      font-size: 14px;
+      color: var(--muted);
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .price-features li:last-child { border-bottom: none; }
+    .price-features li::before { content: '✓'; color: var(--green); font-weight: 700; }
+    .price-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .price-btn.outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .price-btn.filled {
+      background: linear-gradient(135deg, #7c6ff7, #5b8ef0);
+      color: #fff;
+    }
+
+    /* ── TESTIMONIALS ── */
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    @media (max-width: 640px) { .testimonials-grid { grid-template-columns: 1fr; } }
+    .testimonial-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .testimonial-text {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+    .testimonial-author {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .author-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .author-name { font-size: 14px; font-weight: 600; }
+    .author-role { font-size: 12px; color: var(--muted); }
+
+    /* ── CTA BANNER ── */
+    .cta-banner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+    .cta-inner {
+      background: linear-gradient(135deg, rgba(124,111,247,0.15), rgba(91,142,240,0.1));
+      border: 1px solid rgba(124,111,247,0.25);
+      border-radius: 24px;
+      padding: 60px 40px;
+      text-align: center;
+    }
+    .cta-inner h2 {
+      font-size: clamp(22px, 4vw, 36px);
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+    .cta-inner p { color: var(--muted); font-size: 16px; margin-bottom: 32px; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+    }
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .footer-inner p { font-size: 13px; color: var(--muted); }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { font-size: 13px; color: var(--muted); text-decoration: none; }
+    .footer-links a:hover { color: var(--text); }
+
+    /* ── DIVIDER ── */
+    .divider {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-inner">
+      <div class="nav-logo">
+        <div class="nav-logo-icon">🔍</div>
+        VRT Demo
+      </div>
+      <ul class="nav-links">
+        <li><a href="#fitur">Fitur</a></li>
+        <li><a href="#statistik">Statistik</a></li>
+        <li><a href="#harga">Harga</a></li>
+        <li><a href="#testimoni">Testimoni</a></li>
+        <li><a href="#" class="nav-cta">Mulai Gratis</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge">
+      <span>✨</span> Halaman Demo untuk Visual Regression Testing
+    </div>
+    <h1>Pastikan UI Anda<br/>Selalu Konsisten</h1>
+    <p>
+      Deteksi perubahan visual secara otomatis. Tidak ada lagi regresi UI
+      yang lolos ke produksi tanpa diketahui.
+    </p>
+    <div class="hero-actions">
+      <a href="#" class="btn-primary">Coba Sekarang</a>
+      <a href="#fitur" class="btn-secondary">Pelajari Fitur</a>
+    </div>
+  </section>
+
+  <!-- DYNAMIC ELEMENT (untuk test fitur "Sembunyikan elemen") -->
+  <div class="dynamic-bar">
+    <span id="live-time">⏱ —</span>
+  </div>
+
+  <!-- STATS -->
+  <section class="section" id="statistik">
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-value">99.8%</div>
+        <div class="stat-label">Akurasi deteksi</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">&lt; 3s</div>
+        <div class="stat-label">Rata-rata waktu test</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">1.200+</div>
+        <div class="stat-label">Proyek aktif</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section" id="fitur">
+    <div class="section-label">Fitur Unggulan</div>
+    <h2 class="section-title">Semua yang Anda Butuhkan</h2>
+    <p class="section-sub">Dari capture baseline hingga laporan HTML — semua dalam satu alur.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📸</div>
+        <h3>Screenshot Otomatis</h3>
+        <p>Capture baseline langsung dari URL tanpa perlu upload manual. Full-page scroll otomatis untuk konten lazy-load.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔁</div>
+        <h3>Journey Multi-Checkpoint</h3>
+        <p>Test UI sebelum login, sesudah login, dan halaman dalam satu sesi browser. State tersimpan antar checkpoint.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <h3>Pixel-Level Comparison</h3>
+        <p>Powered by pixelmatch. Deteksi perbedaan sekecil 0.001% dengan laporan diff image berwarna merah.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🙈</div>
+        <h3>Sembunyikan Elemen Dinamis</h3>
+        <p>CSS selector atau XPath untuk menyembunyikan jam, iklan, atau konten berubah sebelum screenshot diambil.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">✅</div>
+        <h3>Content Assertion</h3>
+        <p>Verifikasi teks pada elemen tertentu. Pastikan tombol bertuliskan "Login" dan bukan "Sign In".</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3>Export / Import Konfigurasi</h3>
+        <p>Simpan seluruh journey termasuk baseline ke file JSON. Import kembali kapan saja — tidak perlu input ulang.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <div class="divider"></div>
+  <section class="section" id="harga">
+    <div class="section-label">Harga</div>
+    <h2 class="section-title">Pilih Paket Anda</h2>
+    <p class="section-sub">Mulai gratis, upgrade kapan saja sesuai kebutuhan tim.</p>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-name">Starter</div>
+        <div class="price-value">Gratis</div>
+        <div class="price-period">Selamanya</div>
+        <ul class="price-features">
+          <li>3 journey / bulan</li>
+          <li>5 checkpoint per journey</li>
+          <li>Laporan HTML</li>
+          <li>Export / Import JSON</li>
+        </ul>
+        <button class="price-btn outline">Mulai Gratis</button>
+      </div>
+      <div class="price-card popular">
+        <div class="popular-badge">⭐ Paling Populer</div>
+        <div class="price-name">Pro</div>
+        <div class="price-value">Rp 149k</div>
+        <div class="price-period">per bulan</div>
+        <ul class="price-features">
+          <li>Journey tak terbatas</li>
+          <li>20 checkpoint per journey</li>
+          <li>Semua viewport preset</li>
+          <li>Prioritas dukungan</li>
+          <li>API akses</li>
+        </ul>
+        <button class="price-btn filled">Pilih Pro</button>
+      </div>
+      <div class="price-card">
+        <div class="price-name">Enterprise</div>
+        <div class="price-value">Custom</div>
+        <div class="price-period">Hubungi kami</div>
+        <ul class="price-features">
+          <li>Semua fitur Pro</li>
+          <li>On-premise deployment</li>
+          <li>SLA 99.9%</li>
+          <li>Dedicated support</li>
+        </ul>
+        <button class="price-btn outline">Hubungi Kami</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <div class="divider"></div>
+  <section class="section" id="testimoni">
+    <div class="section-label">Testimoni</div>
+    <h2 class="section-title">Dipercaya Tim QA</h2>
+    <p class="section-sub">Apa kata para pengguna tentang sistem VRT ini.</p>
+    <div class="testimonials-grid">
+      <div class="testimonial-card">
+        <p class="testimonial-text">
+          "Sebelum pakai ini, regresi UI sering lolos ke produksi. Sekarang setiap deploy
+          langsung ketahuan kalau ada yang berubah. Journey multi-checkpoint sangat membantu
+          untuk alur login."
+        </p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background: linear-gradient(135deg,#7c6ff7,#5b8ef0)">A</div>
+          <div>
+            <div class="author-name">Adi Nugraha</div>
+            <div class="author-role">QA Engineer, Fintech Startup</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <p class="testimonial-text">
+          "Export/import konfigurasi adalah fitur yang paling sering saya pakai.
+          Bisa share config ke rekan tim tanpa harus setup ulang dari nol.
+          Sangat menghemat waktu."
+        </p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background: linear-gradient(135deg,#22d47a,#5b8ef0)">R</div>
+          <div>
+            <div class="author-name">Rizky Pratama</div>
+            <div class="author-role">Frontend Developer, E-Commerce</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <p class="testimonial-text">
+          "Fitur sembunyikan elemen dinamis menyelamatkan kami dari false positive.
+          Jam dan notifikasi tidak lagi membuat test gagal padahal UI tidak berubah."
+        </p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background: linear-gradient(135deg,#f04f5c,#f0b429)">S</div>
+          <div>
+            <div class="author-name">Sari Wulandari</div>
+            <div class="author-role">SDET, SaaS Platform</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <p class="testimonial-text">
+          "Deploy di Railway sangat mudah. Bisa akses dari mana saja termasuk
+          dari laptop kantor yang pakai VPN untuk testing URL internal."
+        </p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background: linear-gradient(135deg,#a78bfa,#f04f5c)">B</div>
+          <div>
+            <div class="author-name">Bagas Hendra</div>
+            <div class="author-role">DevOps Engineer, Enterprise</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA BANNER -->
+  <div class="cta-banner">
+    <div class="cta-inner">
+      <h2>Siap Mulai Visual Regression Testing?</h2>
+      <p>Setup dalam 5 menit. Tidak perlu kartu kredit untuk paket Starter.</p>
+      <div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap">
+        <a href="/" class="btn-primary">Buka VRT Tool</a>
+        <a href="#" class="btn-secondary">Lihat Dokumentasi</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <p id="footer-year">© <span id="year"></span> VRT Demo — Halaman uji coba untuk Visual Regression Testing.</p>
+      <div class="footer-links">
+        <a href="/">VRT Tool</a>
+        <a href="#fitur">Fitur</a>
+        <a href="#harga">Harga</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Timestamp live — elemen dinamis untuk test fitur "Sembunyikan elemen"
+    // Gunakan selector: #live-time
+    function updateTime() {
+      const el = document.getElementById('live-time');
+      if (el) el.textContent = '⏱ ' + new Date().toLocaleTimeString('id-ID');
+    }
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    // Tahun footer
+    const yearEl = document.getElementById('year');
+    if (yearEl) yearEl.textContent = new Date().getFullYear();
+  </script>
+
+</body>
+</html>
