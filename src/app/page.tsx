@@ -72,6 +72,7 @@ function StepEditor({ steps, onChange }: { steps: ActionStep[]; onChange: (s: Ac
                 <option value="fill">Isi field</option>
                 <option value="click">Klik</option>
                 <option value="wait">Tunggu</option>
+                <option value="scroll">Scroll ke elemen</option>
               </select>
               {step.action !== 'wait' && (
                 <input type="text" value={step.selector} onChange={(e) => upd(i, { selector: e.target.value })}
@@ -79,7 +80,7 @@ function StepEditor({ steps, onChange }: { steps: ActionStep[]; onChange: (s: Ac
                   className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
                   style={{ ...inputStyle, minWidth: 130, fontFamily: "'JetBrains Mono', monospace" }} />
               )}
-              {step.action !== 'click' && (
+              {step.action !== 'click' && step.action !== 'scroll' && (
                 <input type={step.action === 'wait' ? 'number' : 'text'} value={step.value} onChange={(e) => upd(i, { value: e.target.value })}
                   placeholder={step.action === 'wait' ? 'ms (mis. 2000)' : 'nilai / teks'}
                   className="rounded-lg px-3 py-1.5 text-xs outline-none"
