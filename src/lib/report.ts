@@ -1,11 +1,11 @@
-export type StepAction = 'fill' | 'click' | 'wait';
+export type StepAction = 'fill' | 'click' | 'wait' | 'scroll';
 
 export interface ActionStep {
-  /** Jenis aksi: isi field, klik elemen, atau tunggu */
+  /** Jenis aksi: isi field, klik elemen, tunggu, atau scroll ke elemen */
   action: StepAction;
   /** CSS selector atau XPath target (tidak dipakai untuk action 'wait') */
   selector: string;
-  /** Nilai: teks untuk 'fill', milidetik untuk 'wait', diabaikan untuk 'click' */
+  /** Nilai: teks untuk 'fill', milidetik untuk 'wait', diabaikan untuk 'click'/'scroll' */
   value: string;
 }
 

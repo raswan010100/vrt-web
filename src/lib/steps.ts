@@ -31,8 +31,9 @@ export async function runSteps(page: Page, steps: ActionStep[]): Promise<void> {
         await page.fill(selector, step.value, { timeout: 15_000 });
       } else if (step.action === 'click') {
         await page.click(selector, { timeout: 15_000 });
-        // Beri waktu sebentar bila klik memicu navigasi/render
         await page.waitForLoadState('domcontentloaded').catch(() => {});
+      } else if (step.action === 'scroll') {
+        await page.locator(selector).first().scrollIntoViewIfNeeded({ timeout: 15_000 });
       }
     } catch (err) {
       const label =
